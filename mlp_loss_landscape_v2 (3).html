@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>MLP — Paysage de Perte &amp; Optimisation</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--bg2:#f7f5f0;--bg3:#eeebe4;--bg4:#e6e2d8;
+  --border:#d4cfc5;--border2:#c8c2b4;
+  --text:#1a1610;--text2:#4a4438;--text3:#7a6e5a;
+  --accent:#1a3a6a;--accent2:#2d5a9e;
+  --red:#b83232;--green:#1a6a3a;--orange:#c85a10;
+  --purple:#5a2a8a;--teal:#1a6a5a;
+  --panel:285px;
+}
+html,body{height:100%;background:var(--bg);
+  font-family:'Charter','Bitstream Charter','Cambria',Georgia,serif;
+  color:var(--text);font-size:14px;overflow:hidden;}
+
+/* ── TABS ──────────────────────────────────────────── */
+#tab-bar{display:flex;gap:4px;padding:8px 12px 0;background:var(--bg2);
+  border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab-btn{padding:7px 22px;border:1px solid var(--border);border-bottom:none;
+  background:var(--bg3);color:var(--text2);cursor:pointer;border-radius:6px 6px 0 0;
+  font-family:inherit;font-size:14px;letter-spacing:.02em;transition:background .15s;}
+.tab-btn:hover{background:var(--bg4);}
+.tab-btn.active{background:var(--bg);color:var(--accent);font-weight:700;
+  border-color:var(--border2);border-bottom-color:var(--bg);}
+
+/* ── LAYOUT ──────────────────────────────────────── */
+.tab-content{display:none;flex:1;overflow:hidden;}
+.tab-content.active{display:flex;flex-direction:row;}
+#app{display:flex;flex-direction:column;height:100%;}
+
+/* ── PANEL ──────────────────────────────────────── */
+.panel{width:var(--panel);min-width:var(--panel);background:var(--bg2);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  overflow-y:auto;padding:14px 12px;gap:12px;}
+.panel h2{font-size:12.5px;font-weight:700;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);
+  padding-bottom:5px;}
+.panel h3{font-size:11.5px;font-weight:700;color:var(--text2);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.ctrl-group{display:flex;flex-direction:column;gap:7px;}
+
+/* ── FORM ────────────────────────────────────────── */
+label{font-size:12.5px;color:var(--text2);display:flex;flex-direction:column;gap:2px;}
+label.row{flex-direction:row;align-items:center;gap:6px;}
+select,input[type=range]{width:100%;accent-color:var(--accent2);}
+select{padding:4px 6px;border:1px solid var(--border2);border-radius:4px;
+  background:var(--bg);color:var(--text);font-family:inherit;font-size:13px;}
+.vb{display:inline-block;min-width:40px;text-align:right;
+  font-size:12px;font-weight:700;color:var(--accent2);}
+
+/* ── BUTTONS ─────────────────────────────────────── */
+.btn{padding:8px 0;width:100%;border:1px solid var(--border2);border-radius:5px;
+  font-family:inherit;font-size:13px;cursor:pointer;transition:background .15s;}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.btn-primary:hover:not(:disabled){background:var(--accent2);}
+.btn-secondary{background:var(--bg3);color:var(--text2);}
+.btn-secondary:hover:not(:disabled){background:var(--bg4);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn-row{display:flex;gap:6px;}
+.btn-row .btn{flex:1;}
+
+/* ── INFO BOX ────────────────────────────────────── */
+.info-box{background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+  padding:8px 10px;font-size:12px;line-height:1.75;color:var(--text2);}
+.chip{display:inline-block;padding:1px 5px;border-radius:3px;font-size:11px;
+  font-weight:700;margin:0 1px;}
+.c1{background:#e8f0fb;color:#1a3a6a}
+.c2{background:#fce8d8;color:#c85a10}
+.c3{background:#dff0e8;color:#1a6a3a}
+.c4{background:#f0e8f8;color:#5a2a8a}
+.c5{background:#fff6d8;color:#806000}
+
+/* ── MAIN ────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.plot-wrap{flex:1;min-height:0;position:relative;}
+#plot1,#plot2,#plot3{width:100%;height:100%;}
+.footer{padding:6px 14px;border-top:1px solid var(--border);background:var(--bg2);
+  font-size:11.5px;color:var(--text3);display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+.footer b{color:var(--text);}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#ccc;margin-right:4px;vertical-align:middle;}
+.dot.run{background:#28a745;animation:blink 1s infinite;}
+.dot.ok{background:var(--teal);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── PROGRESS ────────────────────────────────────── */
+.prog-wrap{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.prog-bar{height:100%;background:var(--accent2);border-radius:3px;
+  transition:width .15s;width:0%;}
+
+/* ── LEGEND ────────────────────────────────────────── */
+.leg-row{display:flex;align-items:center;gap:6px;font-size:12px;margin:2px 0;}
+.leg-ln{width:22px;height:3px;border-radius:2px;flex-shrink:0;}
+hr.div{border:none;border-top:1px solid var(--border);margin:4px 0;}
+
+/* ── SCENARIO LIST ─────────────────────────────────── */
+#sc-list{cursor:pointer;}
+#sc-list option{padding:3px 6px;font-size:12px;}
+#sc-list option:hover{background:var(--bg4);}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ══ TAB BAR ══════════════════════════════════════ -->
+<div id="tab-bar">
+  <button class="tab-btn active" id="btn-t1" onclick="switchTab(1)">Paysage &amp; Trajectoires</button>
+  <button class="tab-btn" id="btn-t2" onclick="switchTab(3)">Frontiere de Decision</button>
+</div>
+
+<!-- ══ TAB 1 ════════════════════════════════════════ -->
+<div id="tab1" class="tab-content active">
+  <div class="panel">
+    <h2>Paysage &amp; Trajectoires</h2>
+
+    <div class="ctrl-group">
+      <h3>Jeu de données</h3>
+      <label>Type<select id="ds">
+        <optgroup label="2D">
+          <option value="spiral3">Triple spirale (2D)</option>
+          <option value="checker">Damier 4x4 (2D)</option>
+          <option value="ringwave">Anneaux sinusoide (2D)</option>
+          <option value="gauss5">5 Gaussiennes (2D)</option>
+          <option value="moons_hard">Lunes bruitees (2D)</option>
+          <option value="spiral">Spirale double (2D)</option>
+        </optgroup>
+        <optgroup label="Haute dimension">
+          <option value="spiral_hd">Spirale embarquee 20D</option>
+          <option value="gauss_hd">Gaussiennes 50D</option>
+          <option value="xor_hd">XOR sparse 100D</option>
+        </optgroup>
+      </select></label>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Architecture + Seed</h3>
+      <label>Seed&thinsp;<span class="vb" id="v-seed">42</span>
+        <input type="range" id="seed" min="0" max="999" step="1" value="42"
+          oninput="vb('seed','v-seed')"></label>
+      <label>Activation<select id="act">
+        <option value="relu">ReLU</option>
+        <option value="tanh">Tanh</option>
+        <option value="sigmoid">Sigmoid</option>
+        <option value="leaky">Leaky ReLU</option>
+      </select></label>
+      <label>Couches cachées&thinsp;<span class="vb" id="v-nl">2</span>
+        <input type="range" id="nl" min="1" max="20" value="2"
+          oninput="vb('nl','v-nl')"></label>
+      <label>Neurones / couche&thinsp;<span class="vb" id="v-nw">16</span>
+        <input type="range" id="nw" min="1" max="128" step="1" value="16"
+          oninput="vb('nw','v-nw')"></label>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Paysage (Li et al. 2018)</h3>
+      <label>Étendue α, β&thinsp;<span class="vb" id="v-rng">1.0</span>
+        <input type="range" id="rng" min="0.1" max="10" step="0.1" value="1.0"
+          oninput="document.getElementById('v-rng').textContent=(+this.value).toFixed(1)"></label>
+      <label>Résolution grille&thinsp;<span class="vb" id="v-gs">30</span>
+        <input type="range" id="gs" min="15" max="60" step="5" value="30"
+          oninput="vb('gs','v-gs')"></label>
+      <label>Nb samples entraîn.&thinsp;<span class="vb" id="v-nsamp">200</span>
+        <input type="range" id="nsamp" min="50" max="400" step="10" value="200"
+          oninput="vb('nsamp','v-nsamp')"></label>
+      <label>LR entraîn. θ*&thinsp;<span class="vb" id="v-trlr">0.050</span>
+        <input type="range" id="trlr" min="-3" max="0" step="0.1" value="-1.3"
+          oninput="slr('trlr','v-trlr')"></label>
+      <label>Opacité surface&thinsp;<span class="vb" id="v-surfopac">0.72</span>
+        <input type="range" id="surfopac" min="0.1" max="1" step="0.05" value="0.72"
+          oninput="document.getElementById('v-surfopac').textContent=(+this.value).toFixed(2)"></label>
+      <div class="info-box" style="font-size:11.5px">Steps entraîn. θ* = <b>100</b> (fixe)</div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Départ θ₀ = θ* + α₀δ₁ + β₀δ₂</h3>
+      <label style="flex-direction:row;align-items:center;gap:8px">
+        α₀&thinsp;<input type="number" id="a0" value="0" step="0.1"
+          style="flex:1;padding:4px 6px;border:1px solid var(--border2);border-radius:4px;font-family:inherit;font-size:13px;background:var(--bg);"></label>
+      <label style="flex-direction:row;align-items:center;gap:8px">
+        β₀&thinsp;<input type="number" id="b0" value="0" step="0.1"
+          style="flex:1;padding:4px 6px;border:1px solid var(--border2);border-radius:4px;font-family:inherit;font-size:13px;background:var(--bg);"></label>
+      <div class="info-box" style="font-size:11px">(0,0) = θ* — modifiez pour choisir le point de départ des optimiseurs</div>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Optimiseurs à comparer</h3>
+      <label class="row"><input type="checkbox" id="ck-sgd" checked>
+        <span class="chip c1">SGD full-batch</span></label>
+      <label class="row"><input type="checkbox" id="ck-mb" checked>
+        <span class="chip c2">SGD mini-batch</span></label>
+      <label class="row"><input type="checkbox" id="ck-adam" checked>
+        <span class="chip c3">Adam</span></label>
+    </div>
+
+    <div class="ctrl-group">
+      <h3>Hyperparamètres optimiseurs</h3>
+      <label>LR SGD full-batch&thinsp;<span class="vb" id="v-olr">0.050</span>
+        <input type="range" id="olr" min="-3" max="0" step="0.1" value="-1.3"
+          oninput="slr('olr','v-olr')"></label>
+      <label>LR SGD mini-batch&thinsp;<span class="vb" id="v-mblr">0.010</span>
+        <input type="range" id="mblr" min="-3" max="0" step="0.1" value="-2"
+          oninput="slr('mblr','v-mblr')"></label>
+      <label>Momentum SGD (μ)&thinsp;<span class="vb" id="v-mom">0.90</span>
+        <input type="range" id="mom" min="0" max="0.99" step="0.01" value="0.9"
+          oninput="document.getElementById('v-mom').textContent=(+this.value).toFixed(2)"></label>
+      <label>LR Adam&thinsp;<span class="vb" id="v-alr">0.001</span>
+        <input type="range" id="alr" min="-3" max="0" step="0.05" value="-3"
+          oninput="slr('alr','v-alr')"></label>
+      <label>Batch size (mini-batch)&thinsp;<span class="vb" id="v-bs">32</span>
+        <input type="range" id="bs" min="4" max="128" step="4" value="32"
+          oninput="vb('bs','v-bs')"></label>
+      <label>Steps optimiseurs&thinsp;<span class="vb" id="v-ns">500</span>
+        <input type="range" id="ns" min="100" max="5000" step="100" value="500"
+          oninput="vb('ns','v-ns')"></label>
+      <label class="row"><input type="checkbox" id="ck-lrdecay" checked>
+        <span style="font-size:12px">LR decay cosine (SGD)</span></label>
+      <label class="row"><input type="checkbox" id="ck-clip" checked>
+        <span style="font-size:12px">Gradient clipping adaptatif</span></label>
+    </div>
+
+    <button class="btn btn-primary" id="btn1" onclick="computeAll()">
+      ▶&nbsp; Calculer paysage + trajectoires
+    </button>
+    <div class="prog-wrap"><div class="prog-bar" id="pg1"></div></div>
+
+    <!-- ── Scénarios sauvegardés ── -->
+    <div class="ctrl-group">
+      <h3>Scénarios sauvegardés</h3>
+      <div style="display:flex;gap:4px;align-items:center">
+        <input type="text" id="sc-name" placeholder="Nom du scénario…"
+          style="flex:1;padding:5px 8px;border:1px solid var(--border2);border-radius:4px;
+          font-family:inherit;font-size:12px;background:var(--bg);color:var(--text)">
+        <button class="btn btn-primary" onclick="saveScenario()"
+          style="width:auto;padding:5px 12px;font-size:12px;white-space:nowrap">💾</button>
+      </div>
+      <select id="sc-list" size="4"
+        style="width:100%;font-family:inherit;font-size:12px;border:1px solid var(--border2);
+        border-radius:4px;background:var(--bg);color:var(--text)">
+      </select>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="loadScenario()" style="font-size:12px">📂 Charger</button>
+        <button class="btn btn-secondary" onclick="deleteScenario()" style="font-size:12px">🗑 Supprimer</button>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <b>Paysage :</b> θ* entraîné 100 steps, Z = Loss(θ* + αδ₁ + βδ₂)<br>
+      <b>Gradient :</b> différences finies <i>directement sur le mesh Z</i><br>
+      → ∂Z/∂α ≈ (Z(α+h,β)−Z(α−h,β))/(2h) — cohérence parfaite avec la surface<br>
+      <b>Mini-batch :</b> bruit gaussien ∝ ‖∇Z‖/√B ajouté au gradient<br>
+      — ◾ = départ θ₀, ◆ = fin.<br><br>
+      <div class="leg-row"><div class="leg-ln" style="background:#1a3a6a"></div><span class="chip c1">SGD</span> gradient complet + momentum</div>
+      <div class="leg-row"><div class="leg-ln" style="background:#c85a10;border-top:2px dotted #c85a10;background:none"></div><span class="chip c2">Mini-batch</span> SGD stochastique — LR séparé</div>
+      <div class="leg-row"><div class="leg-ln" style="background:#1a6a3a"></div><span class="chip c3">Adam</span> moments adaptatifs</div>
+      <hr class="div">
+      <b>Momentum μ=0</b> → SGD pur · μ>0 → Heavy-Ball dampé (v=μv+(1-μ)g)<br>
+      → pas effectif ≈ lr·g quel que soit μ — μ lisse sans amplifier<br>
+      <b>Clip adaptatif</b> → limite le <i>pas final</i> (après momentum) à 5×EMA<br>
+      <b>LR decay cosine</b> → atténue les oscillations en fin de run<br>
+      <b>Clip adaptatif</b> → EMA de la norme de gradient (évite explosions)
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="plot-wrap"><div id="plot1"></div></div>
+    <div class="footer">
+      <span><span class="dot" id="d1"></span><b id="s1">Prêt</b></span>
+      <span>Paramètres : <b id="np1">—</b></span>
+      <span>Loss θ* : <b id="ls1">—</b></span>
+      <span>Steps optim. : <b id="f-steps">—</b></span>
+      <span>Loss SGD : <b id="f-sgd">—</b></span>
+      <span>Loss Adam : <b id="f-adam">—</b></span>
+      <span style="margin-left:auto;font-style:italic">
+        Z = BCE Loss · X = α · Y = β · axes filter-norm Li et al. 2018 | (0,0) = θ*</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB 3 ════════════════════════════════════════ -->
+<div id="tab3" class="tab-content">
+  <div class="panel">
+    <h2>Frontiere de Decision</h2>
+    <div class="ctrl-group">
+      <h3>Jeu de donnees</h3>
+      <label>Type<select id="ds3">
+        <optgroup label="2D">
+          <option value="spiral3">Triple spirale (3 bras)</option>
+          <option value="checker">Damier 4x4</option>
+          <option value="ringwave">Anneaux + sinusoide</option>
+          <option value="gauss5">5 gaussiennes entrelacees</option>
+          <option value="moons_hard">Lunes bruitees</option>
+          <option value="spiral">Spirale double</option>
+        </optgroup>
+        <optgroup label="3D">
+          <option value="sphere3d">Spheres imbriquees (3D)</option>
+          <option value="helix3d">Double helice (3D)</option>
+          <option value="xor3d">XOR 3D</option>
+          <option value="swissroll3d">Swiss roll (3D)</option>
+        </optgroup>
+      </select></label>
+      <label>Taille N&thinsp;<span class="vb" id="v-dn">200</span>
+        <input type="range" id="dn" min="80" max="400" step="20" value="200" oninput="vb('dn','v-dn')"></label>
+    </div>
+    <div class="ctrl-group">
+      <h3>Reseau</h3>
+      <label>Activation<select id="act3">
+        <option value="relu">ReLU</option>
+        <option value="tanh">Tanh</option>
+        <option value="sigmoid">Sigmoid</option>
+        <option value="leaky">Leaky ReLU</option>
+      </select></label>
+      <label>Couches cachees&thinsp;<span class="vb" id="v-nl3">2</span>
+        <input type="range" id="nl3" min="1" max="6" value="2" oninput="vb('nl3','v-nl3')"></label>
+      <label>Neurones / couche&thinsp;<span class="vb" id="v-nw3">32</span>
+        <input type="range" id="nw3" min="4" max="128" step="4" value="32" oninput="vb('nw3','v-nw3')"></label>
+    </div>
+    <div class="ctrl-group">
+      <h3>Entrainement</h3>
+      <label>Steps&thinsp;<span class="vb" id="v-trs3">800</span>
+        <input type="range" id="trs3" min="100" max="5000" step="100" value="800" oninput="vb('trs3','v-trs3')"></label>
+      <label>LR&thinsp;<span class="vb" id="v-lr3">0.050</span>
+        <input type="range" id="lr3" min="-3" max="0" step="0.1" value="-1.3" oninput="slr('lr3','v-lr3')"></label>
+      <label>Resolution carte&thinsp;<span class="vb" id="v-gr3">60</span>
+        <input type="range" id="gr3" min="30" max="120" step="10" value="60" oninput="vb('gr3','v-gr3')"></label>
+    </div>
+    <div class="ctrl-group">
+      <h3>Mode de visualisation</h3>
+      <label>Vue<select id="view3">
+        <option value="2d">2D — heatmap P(classe 1)</option>
+        <option value="3d">3D — surface P(classe 1)</option>
+      </select></label>
+    </div>
+    <button class="btn btn-primary" id="btn3" onclick="computeBoundary()">Entrainer et visualiser</button>
+    <div class="prog-wrap"><div class="prog-bar" id="pg3"></div></div>
+    <div class="info-box">
+      Chaque pixel = evaluation du reseau apres entrainement.<br><br>
+      <b>Couleur</b> = P(y=1 | x) sortie sigmoid.<br>
+      <b>Contour noir</b> = frontiere de decision (P=0.5).<br>
+      <b>Points</b> = donnees d'entrainement.<br>
+      <b>3D</b> = isosurface P=0.5 + nuage de points.
+    </div>
+  </div>
+  <div class="main">
+    <div class="plot-wrap"><div id="plot3"></div></div>
+    <div class="footer">
+      <span><span class="dot" id="d3"></span><b id="s3">Pret</b></span>
+      <span>Parametres : <b id="np3">--</b></span>
+      <span>Loss finale : <b id="ls3">--</b></span>
+      <span>Acc. train : <b id="acc3">--</b></span>
+      <span style="margin-left:auto;font-style:italic">Heatmap P(y=1|x) | Contour P=0.5 = frontiere | Points = donnees</span>
+    </div>
+  </div>
+</div>
+</div><!-- #app -->
+
+<script>
+"use strict";
+
+// ════════════════════════ UTILS ═══════════════════════════
+let _s32=42;
+function seedRNG(s){_s32=((s>>>0)||1);}
+function rand01(){_s32+=0x6D2B79F5;let t=_s32;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+const randn=()=>{let u=0,v=0;while(!u)u=rand01();while(!v)v=rand01();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+const linspace=(a,b,n)=>Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
+const dot=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s;};
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const sigmoid=x=>1/(1+Math.exp(-clamp(x,-40,40)));
+
+const vb=(id,vid)=>document.getElementById(vid).textContent=document.getElementById(id).value;
+const slr=(id,vid)=>{const v=Math.pow(10,+document.getElementById(id).value);
+  document.getElementById(vid).textContent=v.toFixed(3);};
+const setDot=(d,cls)=>document.getElementById(d).className='dot'+(cls?' '+cls:'');
+const setStatus=(id,t)=>document.getElementById(id).textContent=t;
+const setProg=(id,f)=>document.getElementById(id).style.width=(f*100)+'%';
+['trlr','olr','mblr','alr','lr3'].forEach(id=>{
+  const vid='v-'+id; if(document.getElementById(id))slr(id,vid);});
+
+// ════════════════════════ ACTIVATIONS ════════════════════
+const ACT={
+  relu:  {f:x=>x>0?x:0,          d:(x,y)=>x>0?1:0},
+  tanh:  {f:x=>Math.tanh(x),      d:(x,y)=>1-y*y},
+  sigmoid:{f:x=>sigmoid(x),       d:(x,y)=>y*(1-y)},
+  leaky: {f:x=>x>=0?x:0.1*x,     d:(x,y)=>x>=0?1:0.1},
+};
+
+// ════════════════════════ DATASETS ═══════════════════════════════════
+function genData(name,N=160){
+  const xs=[],ys=[];let inputDim=2;
+  if(name==='spiral'){
+    for(let c=0;c<2;c++) for(let i=0;i<N/2;i++){
+      const t=i/(N/2)*4*Math.PI+c*Math.PI,r=0.5*i/(N/2);
+      xs.push([r*Math.cos(t)+randn()*.07,r*Math.sin(t)+randn()*.07]);ys.push(c);}
+  } else if(name==='spiral3'){
+    const np=Math.floor(N/3);
+    for(let c=0;c<3;c++) for(let i=0;i<np;i++){
+      const t=i/np*4.5*Math.PI+c*2*Math.PI/3,r=0.05+0.45*i/np;
+      xs.push([r*Math.cos(t)+randn()*.05,r*Math.sin(t)+randn()*.05]);ys.push(c===0?0:1);}
+  } else if(name==='checker'){
+    for(let i=0;i<N;i++){
+      const x=(rand01()-.5)*2,y=(rand01()-.5)*2;
+      const gx=Math.floor((x+2)/1),gy=Math.floor((y+2)/1);
+      xs.push([x+randn()*.03,y+randn()*.03]);ys.push((gx+gy)%2);}
+  } else if(name==='ringwave'){
+    for(let i=0;i<N;i++){
+      const r=rand01()*1.8+.1,th=rand01()*2*Math.PI;
+      const x=r*Math.cos(th)+randn()*.05,y=r*Math.sin(th)+randn()*.05;
+      const rn=Math.sqrt(x*x+y*y);
+      xs.push([x,y]);ys.push((Math.floor(rn/.55)+Math.floor(3*th/Math.PI))%2);}
+  } else if(name==='gauss5'){
+    const centers=[[.7,.7],[-.7,.7],[0,-.8],[.7,-.4],[-.7,-.4]];
+    const labels=[0,0,0,1,1];
+    for(let i=0;i<N;i++){const c=i%5;xs.push([centers[c][0]+randn()*.25,centers[c][1]+randn()*.25]);ys.push(labels[c]);}
+  } else if(name==='moons_hard'){
+    for(let i=0;i<N/2;i++){
+      const t=Math.PI*i/(N/2-1);
+      xs.push([Math.cos(t)+randn()*.2,Math.sin(t)+randn()*.2]);ys.push(0);
+      xs.push([1-Math.cos(t)+randn()*.2,-Math.sin(t)+.3+randn()*.2]);ys.push(1);}
+  } else if(name==='moons'){
+    for(let i=0;i<N/2;i++){
+      const t=Math.PI*i/(N/2-1);
+      xs.push([Math.cos(t)+randn()*.1,Math.sin(t)+randn()*.1]);ys.push(0);
+      xs.push([1-Math.cos(t)+randn()*.1,-Math.sin(t)+.5+randn()*.1]);ys.push(1);}
+  } else if(name==='circles'){
+    for(let i=0;i<N;i++){
+      const r=(i%2===0?.3:.85)+randn()*.05,th=rand01()*2*Math.PI;
+      xs.push([r*Math.cos(th),r*Math.sin(th)]);ys.push(i%2);}
+  // ── 3D datasets ───────────────────────────────────────
+  } else if(name==='sphere3d'){
+    inputDim=3;
+    for(let i=0;i<N;i++){
+      const cls=i%2;
+      const r=(cls===0?0.4:0.9)+randn()*0.08;
+      const th=rand01()*2*Math.PI;
+      const phi=Math.acos(2*rand01()-1);
+      xs.push([r*Math.sin(phi)*Math.cos(th),r*Math.sin(phi)*Math.sin(th),r*Math.cos(phi)]);
+      ys.push(cls);}
+  } else if(name==='helix3d'){
+    inputDim=3;
+    for(let c=0;c<2;c++) for(let i=0;i<Math.floor(N/2);i++){
+      const t=i/(N/2)*4*Math.PI+c*Math.PI;
+      xs.push([0.5*Math.cos(t)+randn()*.06,0.5*Math.sin(t)+randn()*.06,t/(4*Math.PI)+randn()*.04]);
+      ys.push(c);}
+  } else if(name==='xor3d'){
+    inputDim=3;
+    for(let i=0;i<N;i++){
+      const x1=randn()*.5,x2=randn()*.5,x3=randn()*.5;
+      xs.push([x1,x2,x3]);ys.push(((x1>0?1:0)+(x2>0?1:0)+(x3>0?1:0))%2);}
+  } else if(name==='swissroll3d'){
+    inputDim=3;
+    for(let i=0;i<N;i++){
+      const t=1.5*Math.PI*(1+2*rand01());
+      const h=rand01()*2-1;
+      xs.push([t*Math.cos(t)/12+randn()*.04,h+randn()*.04,t*Math.sin(t)/12+randn()*.04]);
+      ys.push(t<3*Math.PI?0:1);}
+  // ── High-dimensional datasets ──────────────────────────────
+  } else if(name==='spiral_hd'){
+    const D=20;
+    for(let c=0;c<2;c++) for(let i=0;i<N/2;i++){
+      const t=i/(N/2)*4*Math.PI+c*Math.PI,r=0.5*i/(N/2);
+      const x=[r*Math.cos(t)+randn()*.07,r*Math.sin(t)+randn()*.07];
+      for(let d=2;d<D;d++)x.push(randn()*.5);
+      xs.push(x);ys.push(c);}
+    inputDim=D;
+  } else if(name==='gauss_hd'){
+    const D=50;
+    const ctrs=[0,1,2,3,4].map(()=>Array.from({length:D},()=>randn()*2));
+    const lbls=[0,0,0,1,1];
+    for(let i=0;i<N;i++){const c=i%5;xs.push(Array.from({length:D},(_,d)=>ctrs[c][d]+randn()*.6));ys.push(lbls[c]);}
+    inputDim=D;
+  } else if(name==='xor_hd'){
+    const D=100;
+    for(let i=0;i<N;i++){
+      const x1=randn(),x2=randn();const x=[x1,x2];
+      for(let d=2;d<D;d++)x.push(randn()*.4);
+      xs.push(x);ys.push(((x1>0&&x2>0)||(x1<0&&x2<0))?0:1);}
+    inputDim=D;
+  } else {
+    for(let i=0;i<N;i++){
+      const x=randn()*.6,y=randn()*.6;
+      xs.push([x,y]);ys.push(((x>0&&y>0)||(x<0&&y<0))?0:1);}
+  }
+  return {xs,ys,inputDim};
+}
+
+// ════════════════════════ MLP CLASS ══════════════════════
+class MLP{
+  constructor(sizes,actName){
+    this.sizes=sizes; this.actName=actName;
+    this.Ws=[]; this.bs=[];
+    for(let l=0;l<sizes.length-1;l++){
+      const fi=sizes[l],fo=sizes[l+1],sc=Math.sqrt(2/(fi+fo));
+      const W=new Float64Array(fi*fo);
+      for(let k=0;k<W.length;k++)W[k]=randn()*sc;
+      this.Ws.push(W);
+      this.bs.push(new Float64Array(fo));
+    }
+  }
+
+  fwd(x){
+    const {f}=ACT[this.actName],nL=this.Ws.length;
+    const as=[new Float64Array(x)],zs=[];
+    for(let l=0;l<nL;l++){
+      const W=this.Ws[l],b=this.bs[l],fi=this.sizes[l],fo=this.sizes[l+1];
+      const z=new Float64Array(fo);
+      for(let j=0;j<fo;j++){z[j]=b[j];for(let i=0;i<fi;i++)z[j]+=as[l][i]*W[i*fo+j];}
+      zs.push(z);
+      const a=new Float64Array(fo);
+      const last=l===nL-1;
+      for(let j=0;j<fo;j++)a[j]=last?sigmoid(z[j]):f(z[j]);
+      as.push(a);
+    }
+    return{out:as[nL][0],as,zs};
+  }
+
+  loss(xs,ys){
+    let L=0;
+    for(let s=0;s<xs.length;s++){
+      const{out}=this.fwd(xs[s]),y=ys[s];
+      L-=y*Math.log(out+1e-8)+(1-y)*Math.log(1-out+1e-8);}
+    return L/xs.length;
+  }
+
+  grad(xs,ys,batchSz=null){
+    const{d}=ACT[this.actName],nL=this.Ws.length;
+    const dWs=this.Ws.map(W=>new Float64Array(W.length));
+    const dbs=this.bs.map(b=>new Float64Array(b.length));
+    let smp=xs;let smpy=ys;
+    if(batchSz&&batchSz<xs.length){
+      const idx=Array.from({length:batchSz},()=>Math.floor(rand01()*xs.length));
+      smp=idx.map(i=>xs[i]);smpy=idx.map(i=>ys[i]);}
+    const n=smp.length;
+    for(let s=0;s<n;s++){
+      const{as,zs,out}=this.fwd(smp[s]);
+      const deltas=new Array(nL);
+      deltas[nL-1]=new Float64Array([out-smpy[s]]);
+      for(let l=nL-2;l>=0;l--){
+        const dn=deltas[l+1],Wn=this.Ws[l+1],fo_prev=this.sizes[l+1],fo_next=this.sizes[l+2];
+        const dl=new Float64Array(fo_prev);
+        for(let i=0;i<fo_prev;i++){
+          let dd=0;for(let j=0;j<fo_next;j++)dd+=Wn[i*fo_next+j]*dn[j];
+          dl[i]=dd*d(zs[l][i],as[l+1][i]);}
+        deltas[l]=dl;
+      }
+      for(let l=0;l<nL;l++){
+        const dl=deltas[l],pa=as[l],fi=this.sizes[l],fo=this.sizes[l+1];
+        for(let i=0;i<fi;i++)for(let j=0;j<fo;j++)dWs[l][i*fo+j]+=pa[i]*dl[j];
+        for(let j=0;j<fo;j++)dbs[l][j]+=dl[j];
+      }
+    }
+    return{
+      dWs:dWs.map(w=>{const r=new Float64Array(w.length);for(let i=0;i<w.length;i++)r[i]=w[i]/n;return r;}),
+      dbs:dbs.map(b=>{const r=new Float64Array(b.length);for(let i=0;i<b.length;i++)r[i]=b[i]/n;return r;})
+    };
+  }
+
+  toVec(){
+    let sz=0;
+    for(let l=0;l<this.Ws.length;l++)sz+=this.Ws[l].length+this.bs[l].length;
+    const v=new Float64Array(sz);let p=0;
+    for(let l=0;l<this.Ws.length;l++){v.set(this.Ws[l],p);p+=this.Ws[l].length;v.set(this.bs[l],p);p+=this.bs[l].length;}
+    return v;
+  }
+
+  fromVec(v){
+    let p=0;
+    for(let l=0;l<this.Ws.length;l++){
+      this.Ws[l].set(v.subarray(p,p+this.Ws[l].length));p+=this.Ws[l].length;
+      this.bs[l].set(v.subarray(p,p+this.bs[l].length));p+=this.bs[l].length;}
+  }
+
+  clone(){
+    const m=new MLP(this.sizes,this.actName);
+    for(let l=0;l<this.Ws.length;l++){m.Ws[l]=new Float64Array(this.Ws[l]);m.bs[l]=new Float64Array(this.bs[l]);}
+    return m;
+  }
+
+  get nParams(){let n=0;for(let l=0;l<this.Ws.length;l++)n+=this.Ws[l].length+this.bs[l].length;return n;}
+}
+
+// ════════════════════ FAST FORWARD (zero-alloc) ═════════════════
+// Pre-allocated buffers for forward pass — one per layer output
+function makeFwdBufs(sizes){
+  return sizes.slice(1).map(s=>new Float64Array(s));
+}
+
+// Fast forward pass returning scalar output, using pre-allocated bufs
+function fwdFast(mlp,x,bufs){
+  const actF=ACT[mlp.actName].f,nL=mlp.Ws.length;
+  let inp=x;
+  for(let l=0;l<nL;l++){
+    const W=mlp.Ws[l],b=mlp.bs[l],fi=mlp.sizes[l],fo=mlp.sizes[l+1];
+    const buf=bufs[l],last=l===nL-1;
+    for(let j=0;j<fo;j++){
+      let s=b[j];for(let i=0;i<fi;i++)s+=inp[i]*W[i*fo+j];
+      buf[j]=last?sigmoid(s):actF(s);
+    }
+    inp=buf;
+  }
+  return bufs[nL-1][0];
+}
+
+// Fast loss using pre-allocated bufs (no allocation in hot loop)
+function lossFast(mlp,xs,ys,bufs){
+  const actF=ACT[mlp.actName].f,nL=mlp.Ws.length,N=xs.length;
+  let L=0;
+  for(let s=0;s<N;s++){
+    let inp=xs[s];
+    for(let l=0;l<nL;l++){
+      const W=mlp.Ws[l],b=mlp.bs[l],fi=mlp.sizes[l],fo=mlp.sizes[l+1];
+      const buf=bufs[l],last=l===nL-1;
+      for(let j=0;j<fo;j++){
+        let v=b[j];for(let i=0;i<fi;i++)v+=inp[i]*W[i*fo+j];
+        buf[j]=last?sigmoid(v):actF(v);
+      }
+      inp=buf;
+    }
+    const o=bufs[nL-1][0],y=ys[s];
+    L-=y*Math.log(o+1e-8)+(1-y)*Math.log(1-o+1e-8);
+  }
+  return L/N;
+}
+
+// ════════════════════ FAST GRADIENT (zero-alloc workspace) ═════════
+function createGradWS(sizes){
+  const nL=sizes.length-1;
+  return{
+    dWs:Array.from({length:nL},(_,l)=>new Float64Array(sizes[l]*sizes[l+1])),
+    dbs:Array.from({length:nL},(_,l)=>new Float64Array(sizes[l+1])),
+    as:Array.from({length:nL+1},(_,l)=>new Float64Array(sizes[l])),
+    zs:Array.from({length:nL},(_,l)=>new Float64Array(sizes[l+1])),
+    deltas:Array.from({length:nL},(_,l)=>new Float64Array(sizes[l+1])),
+    batchIdx:new Int32Array(1024)
+  };
+}
+
+function gradFast(mlp,xs,ys,batchSz,ws){
+  const actF=ACT[mlp.actName].f,actD=ACT[mlp.actName].d;
+  const nL=mlp.Ws.length;
+  const{dWs,dbs,as,zs,deltas,batchIdx}=ws;
+  for(let l=0;l<nL;l++){dWs[l].fill(0);dbs[l].fill(0);}
+
+  let N=xs.length;
+  const useBatch=batchSz&&batchSz<xs.length;
+  if(useBatch){
+    N=batchSz;
+    for(let i=0;i<batchSz;i++)batchIdx[i]=Math.floor(rand01()*xs.length);
+  }
+
+  for(let s=0;s<N;s++){
+    const si=useBatch?batchIdx[s]:s;
+    const x=xs[si],y=ys[si];
+    // Forward
+    const inDim=mlp.sizes[0];
+    for(let i=0;i<inDim;i++)as[0][i]=x[i];
+    for(let l=0;l<nL;l++){
+      const W=mlp.Ws[l],b=mlp.bs[l],fi=mlp.sizes[l],fo=mlp.sizes[l+1];
+      const last=l===nL-1;
+      for(let j=0;j<fo;j++){
+        let v=b[j];for(let i=0;i<fi;i++)v+=as[l][i]*W[i*fo+j];
+        zs[l][j]=v;
+        as[l+1][j]=last?sigmoid(v):actF(v);
+      }
+    }
+    // Backward
+    deltas[nL-1][0]=as[nL][0]-y;
+    for(let l=nL-2;l>=0;l--){
+      const Wn=mlp.Ws[l+1],fo=mlp.sizes[l+1],fo2=mlp.sizes[l+2];
+      for(let i=0;i<fo;i++){
+        let dd=0;for(let j=0;j<fo2;j++)dd+=Wn[i*fo2+j]*deltas[l+1][j];
+        deltas[l][i]=dd*actD(zs[l][i],as[l+1][i]);
+      }
+    }
+    // Accumulate
+    for(let l=0;l<nL;l++){
+      const fi=mlp.sizes[l],fo=mlp.sizes[l+1];
+      for(let i=0;i<fi;i++)for(let j=0;j<fo;j++)dWs[l][i*fo+j]+=as[l][i]*deltas[l][j];
+      for(let j=0;j<fo;j++)dbs[l][j]+=deltas[l][j];
+    }
+  }
+  // Average
+  for(let l=0;l<nL;l++){
+    for(let i=0;i<dWs[l].length;i++)dWs[l][i]/=N;
+    for(let i=0;i<dbs[l].length;i++)dbs[l][i]/=N;
+  }
+}
+
+// Project gradient from workspace directly to 2D plane (avoids gradToVec allocation)
+// Returns coordinate gradients: gA = ⟨∇L, d1⟩/‖d1‖², gB = ⟨∇L, d2⟩/‖d2‖²
+// Dividing by ‖d‖² is REQUIRED: d1 is filter-normalised so ‖d1‖² ∝ nb_params.
+// Without it, the raw dot product is O(√P) times too large → instant NaN divergence.
+function gradProj(ws,d1,d2,d1sq,d2sq){
+  let gA=0,gB=0,p=0;
+  for(let l=0;l<ws.dWs.length;l++){
+    const dW=ws.dWs[l];
+    for(let k=0;k<dW.length;k++){gA+=dW[k]*d1[p];gB+=dW[k]*d2[p];p++;}
+    const db=ws.dbs[l];
+    for(let k=0;k<db.length;k++){gA+=db[k]*d1[p];gB+=db[k]*d2[p];p++;}
+  }
+  // Divide by ‖d‖² → gradient expressed in (α,β) landscape coordinates
+  return[gA/d1sq,gB/d2sq];
+}
+
+// ════════════════════════ FILTER NORMALISATION (Li et al 2018) ═══════
+function randFNDir(mlp){
+  const parts=[];
+  for(let l=0;l<mlp.Ws.length;l++){
+    const W=mlp.Ws[l],fi=mlp.sizes[l],fo=mlp.sizes[l+1];
+    const dW=new Float64Array(W.length);
+    for(let k=0;k<dW.length;k++)dW[k]=randn();
+    for(let i=0;i<fi;i++){
+      let wn=0,dn=0;
+      for(let j=0;j<fo;j++){wn+=W[i*fo+j]**2;dn+=dW[i*fo+j]**2;}
+      wn=Math.sqrt(wn);dn=Math.sqrt(dn);
+      const sc=dn>1e-9?wn/dn:0;
+      for(let j=0;j<fo;j++)dW[i*fo+j]*=sc;
+    }
+    parts.push(dW);
+    const db=new Float64Array(mlp.bs[l].length);
+    for(let k=0;k<db.length;k++)db[k]=randn()*.1;
+    parts.push(db);
+  }
+  let sz=0;for(const p of parts)sz+=p.length;
+  const v=new Float64Array(sz);let p=0;
+  for(const pp of parts){v.set(pp,p);p+=pp.length;}
+  return v;
+}
+
+function ortho(d1,d2){
+  const proj=dot(d1,d2)/dot(d1,d1);
+  const o=new Float64Array(d2.length);
+  for(let i=0;i<d2.length;i++)o[i]=d2[i]-proj*d1[i];
+  return o;
+}
+
+function normalise(v){const n=Math.sqrt(dot(v,v));const r=new Float64Array(v.length);for(let i=0;i<v.length;i++)r[i]=v[i]/n;return r;}
+
+function pcaDirs(displacements){
+  const n=displacements.length,d=displacements[0].length;
+  let v=normalise(new Float64Array(d).map(()=>randn()));
+  for(let iter=0;iter<80;iter++){
+    const Av=new Float64Array(d);
+    for(let i=0;i<n;i++){const c=dot(displacements[i],v);for(let k=0;k<d;k++)Av[k]+=c*displacements[i][k];}
+    const nv=Math.sqrt(dot(Av,Av));if(nv<1e-12)break;for(let k=0;k<d;k++)v[k]=Av[k]/nv;
+  }
+  const pc1=new Float64Array(v);
+  let u=normalise((()=>{const w=new Float64Array(d).map(()=>randn());const pu=dot(w,pc1);return new Float64Array(d).map((_,k)=>w[k]-pu*pc1[k]);})());
+  for(let iter=0;iter<80;iter++){
+    const Au=new Float64Array(d);
+    for(let i=0;i<n;i++){const c=dot(displacements[i],u);for(let k=0;k<d;k++)Au[k]+=c*displacements[i][k];}
+    const p1=dot(Au,pc1);for(let k=0;k<d;k++)Au[k]-=p1*pc1[k];
+    const nu=Math.sqrt(dot(Au,Au));if(nu<1e-12)break;for(let k=0;k<d;k++)u[k]=Au[k]/nu;
+  }
+  return{pc1,pc2:new Float64Array(u)};
+}
+
+// ════════════════════════ GRID COMPUTATION (async, zero-alloc) ════════
+async function computeGrid(mlp,xs,ys,d1,d2,range,nG,onProg){
+  const th0=mlp.toVec(),alphas=linspace(-range,range,nG),grid=[];
+  const th=new Float64Array(th0.length);
+  const bufs=makeFwdBufs(mlp.sizes);
+  for(let i=0;i<nG;i++){
+    const row=[];
+    for(let j=0;j<nG;j++){
+      const a=alphas[i],b=alphas[j];
+      for(let k=0;k<th0.length;k++)th[k]=th0[k]+a*d1[k]+b*d2[k];
+      mlp.fromVec(th);
+      row.push(lossFast(mlp,xs,ys,bufs));
+    }
+    grid.push(row);
+    if(i%2===0){if(onProg)onProg(i/nG);await yld();}
+  }
+  mlp.fromVec(th0);
+  const Z=Array.from({length:nG},(_,j)=>Array.from({length:nG},(_,i)=>grid[i][j]));
+  return{Z,alphas};
+}
+
+function projectPath(path,th0,d1,d2){
+  const d1sq=dot(d1,d1),d2sq=dot(d2,d2);
+  return path.map(th=>{
+    const diff=new Float64Array(th.length);
+    for(let k=0;k<th.length;k++)diff[k]=th[k]-th0[k];
+    return[dot(diff,d1)/d1sq,dot(diff,d2)/d2sq];
+  });
+}
+
+function gradToVec(dWs,dbs){
+  let sz=0;for(let l=0;l<dWs.length;l++)sz+=dWs[l].length+dbs[l].length;
+  const v=new Float64Array(sz);let p=0;
+  for(let l=0;l<dWs.length;l++){v.set(dWs[l],p);p+=dWs[l].length;v.set(dbs[l],p);p+=dbs[l].length;}
+  return v;
+}
+
+// ════════════════════════ TRAINING ═══════════════════════
+function trainFull(mlp,xs,ys,steps,lr,onProg=null){
+  for(let t=0;t<steps;t++){
+    const{dWs,dbs}=mlp.grad(xs,ys);
+    for(let l=0;l<mlp.Ws.length;l++){
+      for(let k=0;k<mlp.Ws[l].length;k++)mlp.Ws[l][k]-=lr*dWs[l][k];
+      for(let k=0;k<mlp.bs[l].length;k++)mlp.bs[l][k]-=lr*dbs[l][k];}
+    if(onProg&&t%50===0)onProg(t/steps);
+  }
+}
+
+// ════════════════════════ OPTIMIZER CLASSES ══════════════
+class SGDOpt{
+  constructor(lr){this.lr=lr;}
+  init(){}
+  step(m,dWs,dbs){
+    for(let l=0;l<m.Ws.length;l++){
+      for(let k=0;k<m.Ws[l].length;k++)m.Ws[l][k]-=this.lr*dWs[l][k];
+      for(let k=0;k<m.bs[l].length;k++)m.bs[l][k]-=this.lr*dbs[l][k];}
+  }
+}
+class MomOpt{
+  constructor(lr,mu=0.9){this.lr=lr;this.mu=mu;this.vW=null;this.vb=null;}
+  init(m){this.vW=m.Ws.map(W=>new Float64Array(W.length));this.vb=m.bs.map(b=>new Float64Array(b.length));}
+  step(m,dWs,dbs){
+    for(let l=0;l<m.Ws.length;l++){
+      for(let k=0;k<m.Ws[l].length;k++){this.vW[l][k]=this.mu*this.vW[l][k]-this.lr*dWs[l][k];m.Ws[l][k]+=this.vW[l][k];}
+      for(let k=0;k<m.bs[l].length;k++){this.vb[l][k]=this.mu*this.vb[l][k]-this.lr*dbs[l][k];m.bs[l][k]+=this.vb[l][k];}}
+  }
+}
+class AdamOpt{
+  constructor(lr=1e-3,b1=0.9,b2=0.999,eps=1e-8){this.lr=lr;this.b1=b1;this.b2=b2;this.eps=eps;this.t=0;}
+  init(m){
+    this.mW=m.Ws.map(W=>new Float64Array(W.length));this.vW=m.Ws.map(W=>new Float64Array(W.length));
+    this.mb=m.bs.map(b=>new Float64Array(b.length));this.vb=m.bs.map(b=>new Float64Array(b.length));this.t=0;}
+  step(m,dWs,dbs){
+    this.t++;const bc1=1-Math.pow(this.b1,this.t),bc2=1-Math.pow(this.b2,this.t);
+    for(let l=0;l<m.Ws.length;l++){
+      for(let k=0;k<m.Ws[l].length;k++){
+        this.mW[l][k]=this.b1*this.mW[l][k]+(1-this.b1)*dWs[l][k];
+        this.vW[l][k]=this.b2*this.vW[l][k]+(1-this.b2)*dWs[l][k]**2;
+        m.Ws[l][k]-=this.lr*(this.mW[l][k]/bc1)/(Math.sqrt(this.vW[l][k]/bc2)+this.eps);}
+      for(let k=0;k<m.bs[l].length;k++){
+        this.mb[l][k]=this.b1*this.mb[l][k]+(1-this.b1)*dbs[l][k];
+        this.vb[l][k]=this.b2*this.vb[l][k]+(1-this.b2)*dbs[l][k]**2;
+        m.bs[l][k]-=this.lr*(this.mb[l][k]/bc1)/(Math.sqrt(this.vb[l][k]/bc2)+this.eps);}}
+  }
+}
+class RMSOpt{
+  constructor(lr=1e-3,rho=0.9,eps=1e-8){this.lr=lr;this.rho=rho;this.eps=eps;}
+  init(m){this.vW=m.Ws.map(W=>new Float64Array(W.length));this.vb=m.bs.map(b=>new Float64Array(b.length));}
+  step(m,dWs,dbs){
+    for(let l=0;l<m.Ws.length;l++){
+      for(let k=0;k<m.Ws[l].length;k++){
+        this.vW[l][k]=this.rho*this.vW[l][k]+(1-this.rho)*dWs[l][k]**2;
+        m.Ws[l][k]-=this.lr*dWs[l][k]/(Math.sqrt(this.vW[l][k])+this.eps);}
+      for(let k=0;k<m.bs[l].length;k++){
+        this.vb[l][k]=this.rho*this.vb[l][k]+(1-this.rho)*dbs[l][k]**2;
+        m.bs[l][k]-=this.lr*dbs[l][k]/(Math.sqrt(this.vb[l][k])+this.eps);}}
+  }
+}
+class AdaGradOpt{
+  constructor(lr=0.1,eps=1e-8){this.lr=lr;this.eps=eps;}
+  init(m){this.gW=m.Ws.map(W=>new Float64Array(W.length));this.gb=m.bs.map(b=>new Float64Array(b.length));}
+  step(m,dWs,dbs){
+    for(let l=0;l<m.Ws.length;l++){
+      for(let k=0;k<m.Ws[l].length;k++){
+        this.gW[l][k]+=dWs[l][k]**2;m.Ws[l][k]-=this.lr*dWs[l][k]/(Math.sqrt(this.gW[l][k])+this.eps);}
+      for(let k=0;k<m.bs[l].length;k++){
+        this.gb[l][k]+=dbs[l][k]**2;m.bs[l][k]-=this.lr*dbs[l][k]/(Math.sqrt(this.gb[l][k])+this.eps);}}
+  }
+}
+
+// ════════════════════════ COLORSCALE ════════════════════════
+const CS=[
+  [0,'#0a3a6a'],[0.12,'#1a6aaa'],[0.26,'#4ab0ff'],
+  [0.42,'#7aedcc'],[0.58,'#d8f040'],[0.72,'#ffaa00'],
+  [0.86,'#ee4400'],[1,'#8b0000']
+];
+
+// ═══════════════════════ SAVED SCENARIO STATE ════════════════════
+let lastComputed=null;
+
+// ═══════════════════════ TAB 1 — PAYSAGE + TRAJECTOIRES (optimized) ══
+async function computeAll(){
+  const b=document.getElementById('btn1');
+  b.disabled=true;b.textContent='⏳ En cours…';
+  setDot('d1','run');setStatus('s1','Initialisation…');setProg('pg1',0);
+  await yld();
+
+  const seed=+g('seed');
+  seedRNG(seed);
+
+  const actName=g('act'),nL=+g('nl'),nW=+g('nw');
+  const range=+g('rng'),nG=+g('gs');
+  const nSamp=+g('nsamp');
+  const lr=Math.pow(10,+g('trlr'));
+  const surfOpac=+g('surfopac');
+  const TRAIN_STEPS=100;
+  const dsName=g('ds');
+
+  const{xs,ys,inputDim}=genData(dsName,nSamp);
+  const sizes=[inputDim,...Array(nL).fill(nW),1];
+  const mlp=new MLP(sizes,actName);
+  document.getElementById('np1').textContent=mlp.nParams;
+
+  setStatus('s1','Entraînement θ* ('+TRAIN_STEPS+' steps)…');await yld();
+  trainFull(mlp,xs,ys,TRAIN_STEPS,lr,p=>setProg('pg1',p*.2));
+  const lstar=mlp.loss(xs,ys);
+  document.getElementById('ls1').textContent=lstar.toFixed(4);
+  const thStar=mlp.toVec();
+  setProg('pg1',.25);
+
+  seedRNG(seed*31+17);
+  const d1=randFNDir(mlp);
+  const d2=ortho(d1,randFNDir(mlp));
+  mlp.fromVec(thStar);
+
+  setStatus('s1','Grille paysage ('+nG+'×'+nG+')…');await yld();
+  const{Z,alphas}=await computeGrid(mlp,xs,ys,d1,d2,range,nG,
+    p=>{setProg('pg1',.25+p*.20);});
+  mlp.fromVec(thStar);
+
+  let gmin=Infinity,gmax=-Infinity;
+  Z.forEach(r=>r.forEach(v=>{if(v<gmin)gmin=v;if(v>gmax)gmax=v;}));
+  setProg('pg1',.45);
+
+  const a0=+g('a0'),b0=+g('b0');
+  // initLoss depuis le mesh (cohérence avec les trajectoires différences finies)
+  // On calcule après avoir stocké Z et alphas
+
+  // ── Gradient 2D par différences finies sur le mesh ────────────────
+  // Le gradient est estimé DIRECTEMENT depuis les valeurs Z du paysage.
+  // → cohérence parfaite avec la surface affichée
+  // → LR a une sémantique claire en coordonnées (α,β) du plan
+  // → pas de projection approximative, pas de problème d'échelle
+  //
+  // Interpolation bilinéaire de Z(α,β) et de son gradient ∂Z/∂α, ∂Z/∂β
+  const nGi=alphas.length;
+  const dAlpha=alphas[1]-alphas[0];  // pas de grille
+
+  // Retourne Z interpolé + gradient (gA,gB) par différences finies centrées
+  function meshGradAt(a, b){
+    // Coordonnées continues dans la grille
+    const ai=(a-alphas[0])/dAlpha;
+    const bi=(b-alphas[0])/dAlpha;
+    // Clamp pour rester dans la grille (avec marge pour différences finies)
+    const eps=0.5; // en indices grille
+    const aic=Math.max(eps, Math.min(nGi-1-eps, ai));
+    const bic=Math.max(eps, Math.min(nGi-1-eps, bi));
+
+    // Différences finies centrées sur la grille (pas = 1 indice = dAlpha)
+    // gA = ∂Z/∂α ≈ (Z(α+dα,β) - Z(α-dα,β)) / (2·dα)
+    const interpZ=(aa,bb)=>{
+      const ia=Math.max(0,Math.min(nGi-1-1e-9,aa));
+      const ib=Math.max(0,Math.min(nGi-1-1e-9,bb));
+      const i0=Math.floor(ia), i1=Math.min(i0+1,nGi-1);
+      const j0=Math.floor(ib), j1=Math.min(j0+1,nGi-1);
+      const fa=ia-i0, fb=ib-j0;
+      // Z est indexé Z[col_beta][col_alpha] → Z[j][i]
+      return (1-fa)*(1-fb)*Z[j0][i0]
+           + fa    *(1-fb)*Z[j0][i1]
+           + (1-fa)*fb    *Z[j1][i0]
+           + fa    *fb    *Z[j1][i1];
+    };
+    const h=1.0; // différence en indices (= 1 pas de grille = dAlpha physique)
+    const gA=(interpZ(aic+h,bic)-interpZ(aic-h,bic))/(2*dAlpha);
+    const gB=(interpZ(aic,bic+h)-interpZ(aic,bic-h))/(2*dAlpha);
+    const z=interpZ(aic,bic);
+    return{gA,gB,z};
+  }
+
+  // Pour SGD mini-batch : on ajoute du bruit gaussien proportionnel
+  // à la variance locale du gradient (simulé par bruit additif calibré)
+  // σ_mb ∝ ‖∇Z‖ / sqrt(batchSz)  → comportement stochastique réaliste
+  function meshGradAtMiniBatch(a, b, bSz){
+    const{gA,gB,z}=meshGradAt(a,b);
+    const gnorm=Math.sqrt(gA*gA+gB*gB);
+    const sigma=gnorm/Math.sqrt(bSz); // variance ∝ 1/√B (CLT)
+    return{gA:gA+randn()*sigma, gB:gB+randn()*sigma, z};
+  }
+
+  // ── 2D optimization sur le paysage ────────────────────────────────
+  const lr_sgd=Math.pow(10,+g('olr'));
+  const lr_mb=Math.pow(10,+g('mblr'));
+  const lr_adam=Math.pow(10,+g('alr'));
+  const momentum=+g('mom');
+  const batchSz=+g('bs'),nSteps=+g('ns');
+  const useLRDecay=document.getElementById('ck-lrdecay').checked;
+  const useClip=document.getElementById('ck-clip').checked;
+
+  const SPECS=[
+    {key:'sgd', name:'SGD full-batch', col:'#1a3a6a',dsh:'solid', mb:false, lr:lr_sgd},
+    {key:'mb',  name:'SGD mini-batch', col:'#c85a10',dsh:'dot',   mb:true,  lr:lr_mb},
+    {key:'adam',name:'Adam',           col:'#1a6a3a',dsh:'solid', mb:false, lr:lr_adam},
+  ];
+  const active=SPECS.filter(s=>document.getElementById('ck-'+s.key).checked);
+  if(!active.length){setStatus('s1','Sélectionnez au moins un optimiseur');b.disabled=false;b.textContent='▶ Calculer paysage + trajectoires';return;}
+
+  const results=[];
+  const maxPts=300;
+  const sampleEvery=Math.max(1,Math.floor(nSteps/maxPts));
+  const yieldEvery=Math.max(20,Math.floor(nSteps/80));
+
+  for(let oi=0;oi<active.length;oi++){
+    const sp=active[oi];
+    let alpha=a0, beta=b0;
+
+    // Adam moments (2D)
+    let mA=0,mB=0,vA2=0,vB2=0,at=0;
+    const AB1=0.9,AB2=0.999,AEPS=1e-8;
+    // SGD momentum velocity (Heavy-Ball dampé: v = μv + (1-μ)g → pas ≈ lr·g)
+    let vA=0,vB=0;
+
+    const{z:z0}=meshGradAt(alpha,beta);
+    const proj=[[alpha,beta]];
+    const Zpath=[z0];
+
+    seedRNG(seed*97+3+oi*7);
+    setStatus('s1',sp.name+' 0/'+nSteps+'…');
+
+    for(let t=0;t<nSteps;t++){
+      // LR cosine decay pour SGD/mini-batch
+      let lr_t=sp.lr;
+      if(useLRDecay && sp.key!=='adam'){
+        lr_t=sp.lr*(0.5+0.5*Math.cos(Math.PI*t/nSteps));
+        lr_t=Math.max(lr_t, sp.lr*0.05);
+      }
+
+      // ── Gradient 2D depuis le mesh (différences finies) ──
+      let gA,gB;
+      if(sp.mb){
+        const r=meshGradAtMiniBatch(alpha,beta,batchSz);
+        gA=r.gA; gB=r.gB;
+      } else {
+        const r=meshGradAt(alpha,beta);
+        gA=r.gA; gB=r.gB;
+      }
+
+      // ── Clipping optionnel du gradient (norme max = range/4) ──
+      if(useClip){
+        const gNorm=Math.sqrt(gA*gA+gB*gB);
+        const maxG=range/4; // borne naturelle = quart de l'étendue du paysage
+        if(gNorm>maxG){const sc=maxG/gNorm; gA*=sc; gB*=sc;}
+      }
+
+      // ── Mise à jour ──
+      let stepA,stepB;
+      if(sp.key==='adam'){
+        at++;
+        mA=AB1*mA+(1-AB1)*gA; mB=AB1*mB+(1-AB1)*gB;
+        vA2=AB2*vA2+(1-AB2)*gA**2; vB2=AB2*vB2+(1-AB2)*gB**2;
+        const bc1=1-Math.pow(AB1,at), bc2=1-Math.pow(AB2,at);
+        stepA=lr_t*(mA/bc1)/(Math.sqrt(vA2/bc2)+AEPS);
+        stepB=lr_t*(mB/bc1)/(Math.sqrt(vB2/bc2)+AEPS);
+      } else if(momentum>0){
+        vA=momentum*vA+(1-momentum)*gA;
+        vB=momentum*vB+(1-momentum)*gB;
+        stepA=lr_t*vA; stepB=lr_t*vB;
+      } else {
+        stepA=lr_t*gA; stepB=lr_t*gB;
+      }
+
+      alpha-=stepA;
+      beta -=stepB;
+
+      // Rebond aux bords du paysage (reflexion douce)
+      const aMin=alphas[0], aMax=alphas[nGi-1];
+      if(alpha<aMin){alpha=aMin+(aMin-alpha)*0.1; vA*=-0.1;}
+      if(alpha>aMax){alpha=aMax-(alpha-aMax)*0.1; vA*=-0.1;}
+      if(beta <aMin){beta =aMin+(aMin-beta )*0.1; vB*=-0.1;}
+      if(beta >aMax){beta =aMax-(beta -aMax)*0.1; vB*=-0.1;}
+      if(!isFinite(alpha)||!isFinite(beta)){
+        alpha=a0; beta=b0; vA=0; vB=0; mA=0; mB=0; vA2=0; vB2=0;
+      }
+
+      if((t+1)%sampleEvery===0||t===nSteps-1){
+        const{z}=meshGradAt(alpha,beta);
+        proj.push([alpha,beta]);
+        Zpath.push(isFinite(z)?z:null);
+      }
+
+      if(t%yieldEvery===0){
+        setProg('pg1',.45+(.48*(oi+t/nSteps)/active.length));
+        setStatus('s1',sp.name+' '+(t+1)+'/'+nSteps+'…');
+        await yld();
+      }
+    }
+
+    const{z:zFinal}=meshGradAt(alpha,beta);
+    results.push({sp,proj,Zpath,finalLoss:zFinal});
+    setProg('pg1',.45+.48*(oi+1)/active.length);
+    await yld();
+  }
+
+  const initLoss=meshGradAt(a0,b0).z; // depuis le mesh
+
+  // ── Store for save/load ────────────────────────────────
+  lastComputed={
+    Z,alphas,lstar,nParams:mlp.nParams,surfOpac,actName,nL,nW,seed,
+    a0,b0,initLoss,gmin,gmax,dsName,nSteps,
+    trajectories:results.map(r=>({
+      key:r.sp.key,name:r.sp.name,col:r.sp.col,dsh:r.sp.dsh,
+      proj:r.proj,Zpath:r.Zpath,finalLoss:r.finalLoss
+    }))
+  };
+
+  // ── Build Plotly traces ─────────────────────────────────
+  displayFromData(lastComputed);
+
+  setProg('pg1',1);setDot('d1','ok');
+  setStatus('s1','✓  '+nL+' couche(s)×'+nW+'·'+actName+'·seed='+seed+'·α/β proj.');
+  b.disabled=false;b.textContent='▶ Calculer paysage + trajectoires';
+}
+
+// ═══════════════════════ DISPLAY FROM DATA ═══════════════════════
+function displayFromData(data){
+  const{Z,alphas,lstar,surfOpac,actName,nL,nW,seed,a0,b0,initLoss,gmin,gmax,trajectories,nSteps,nParams}=data;
+
+  const surfT={
+    type:'surface',x:alphas,y:alphas,z:Z,
+    colorscale:CS,opacity:surfOpac,
+    contours:{z:{show:false}},
+    lighting:{ambient:.7,diffuse:.85,specular:.3},
+    colorbar:{title:{text:'BCE Loss'},tickfont:{size:10},len:.65,thickness:13,x:1.02},
+    hovertemplate:'α:%{x:.3f} β:%{y:.3f}<br>Loss:%{z:.4f}<extra></extra>',
+    name:'Paysage f(θ*+αδ₁+βδ₂)'
+  };
+  const allTraces=[surfT];
+
+  allTraces.push({
+    type:'scatter3d',mode:'markers+text',x:[0],y:[0],z:[lstar],
+    text:['  θ*'],textposition:'middle right',textfont:{color:'#fff',size:12},
+    marker:{size:9,color:'#fff',symbol:'diamond',line:{color:'#222',width:2}},
+    name:'θ* (entraîné)  L='+lstar.toFixed(5),
+    hovertemplate:'θ* — Loss: '+lstar.toFixed(5)+'<extra></extra>'
+  });
+
+  if(a0!==0||b0!==0){
+    allTraces.push({
+      type:'scatter3d',mode:'markers+text',x:[a0],y:[b0],z:[Math.min(initLoss,gmax*1.05)],
+      text:['  θ₀'],textposition:'middle right',textfont:{color:'#ffe040',size:12},
+      marker:{size:8,color:'#ffe040',symbol:'circle',line:{color:'#333',width:2}},
+      name:'θ₀ (départ optim.)  L='+initLoss.toFixed(5),
+      hovertemplate:'θ₀ — Loss: '+initLoss.toFixed(5)+'<extra></extra>'
+    });
+  }
+
+  for(const traj of trajectories){
+    const pts=traj.proj.map((p,i)=>({x:p[0],y:p[1],z:traj.Zpath[i]})).filter(p=>p.z!==null&&isFinite(p.z));
+    if(!pts.length)continue;
+    const px=pts.map(p=>p.x),py=pts.map(p=>p.y),pz=pts.map(p=>Math.min(p.z,gmax*1.1));
+    allTraces.push({
+      type:'scatter3d',mode:'lines',x:px,y:py,z:pz,
+      line:{color:traj.col,width:6,dash:traj.dsh},
+      name:traj.name+'  L='+traj.finalLoss.toFixed(5),
+      hovertemplate:traj.name+'<br>α=%{x:.3f} β=%{y:.3f}<br>Loss=%{z:.4f}<extra></extra>'
+    });
+    allTraces.push({type:'scatter3d',mode:'markers',x:[px[0]],y:[py[0]],z:[pz[0]],
+      marker:{size:7,color:traj.col,symbol:'square',line:{color:'#fff',width:1.5}},showlegend:false});
+    allTraces.push({type:'scatter3d',mode:'markers',
+      x:[px[px.length-1]],y:[py[py.length-1]],z:[pz[pz.length-1]],
+      marker:{size:8,color:traj.col,symbol:'diamond',line:{color:'#fff',width:1.5}},showlegend:false});
+  }
+
+  const xr=[alphas[0],alphas[alphas.length-1]];
+  const title='Paysage + Trajectoires — MLP '+nL+' couche'+(nL>1?'s':'')+' × '+nW+' nœuds · <b>'+actName+'</b> · <b>'+nParams+' params</b> · seed='+seed+'<br>'
+    +'<sup>Surface: paysage filter-norm. Li et al. (2018) | Optim. 2D contraint au plan α,β | (0,0) = θ*</sup>';
+
+  Plotly.react('plot1',allTraces,{
+    scene:{
+      xaxis:{title:{text:'α — dir. 1 (filter-norm.)',font:{size:11}},tickfont:{size:9},gridcolor:'#ddd',zerolinecolor:'#666',zerolinewidth:2.5,range:xr},
+      yaxis:{title:{text:'β — dir. 2 (filter-norm.)',font:{size:11}},tickfont:{size:9},gridcolor:'#ddd',zerolinecolor:'#666',zerolinewidth:2.5,range:xr},
+      zaxis:{title:{text:'Z = BCE Loss',font:{size:11}},tickfont:{size:9},gridcolor:'#ddd'},
+      camera:{eye:{x:1.55,y:-1.65,z:1.15},center:{x:0,y:0,z:-.1}},
+      bgcolor:'#f7f5f0',aspectmode:'manual',aspectratio:{x:1.2,y:1.2,z:.75}
+    },
+    title:{text:title,font:{size:12,color:'#1a1610'},x:.5,y:.98,xanchor:'center'},
+    margin:{l:0,r:20,b:0,t:68},paper_bgcolor:'#ffffff',showlegend:true,
+    legend:{x:.01,y:.99,bgcolor:'rgba(255,255,255,.9)',bordercolor:'#ccc',borderwidth:1,font:{size:11}},
+    font:{family:"Charter, Georgia, serif"}
+  },{responsive:true,displaylogo:false});
+
+  const sr=trajectories.find(t=>t.key==='sgd');
+  const ar=trajectories.find(t=>t.key==='adam');
+  document.getElementById('np1').textContent=nParams;
+  document.getElementById('ls1').textContent=lstar.toFixed(4);
+  document.getElementById('f-steps').textContent=nSteps;
+  document.getElementById('f-sgd').textContent=sr?sr.finalLoss.toFixed(5):'—';
+  document.getElementById('f-adam').textContent=ar?ar.finalLoss.toFixed(5):'—';
+}
+
+function resetAll(){
+  Plotly.purge('plot1');
+  initPlaceholder('plot1','Configurez et cliquez <b>Calculer paysage + trajectoires</b>');
+  setDot('d1','');setStatus('s1','Prêt');setProg('pg1',0);
+  ['f-steps','f-sgd','f-adam','ls1','np1'].forEach(id=>document.getElementById(id).textContent='—');
+  lastComputed=null;
+}
+
+// ═══════════════════════ TAB 3 — DECISION BOUNDARY ══════════════════
+async function computeBoundary(){
+  const b=document.getElementById('btn3');
+  b.disabled=true;b.textContent='En cours…';
+  setDot('d3','run');setStatus('s3','Entrainement…');setProg('pg3',0);
+  await yld();
+  const actName=g('act3'),nL=+g('nl3'),nW=+g('nw3');
+  const nSteps=+g('trs3'),lr=Math.pow(10,+g('lr3'));
+  const gRes=+g('gr3'),view=g('view3'),N=+g('dn');
+  const dsName=g('ds3');
+  const{xs,ys,inputDim}=genData(dsName,N);
+  const sizes=[inputDim,...Array(nL).fill(nW),1];
+  const mlp=new MLP(sizes,actName);
+  document.getElementById('np3').textContent=mlp.nParams;
+  trainFull(mlp,xs,ys,nSteps,lr,p=>setProg('pg3',p*.7));
+  const finalLoss=mlp.loss(xs,ys);
+  let ok=0;for(let i=0;i<xs.length;i++){const{out}=mlp.fwd(xs[i]);if((out>=.5?1:0)===ys[i])ok++;}
+  const acc=ok/xs.length;
+  document.getElementById('ls3').textContent=finalLoss.toFixed(4);
+  document.getElementById('acc3').textContent=(acc*100).toFixed(1)+'%';
+  setStatus('s3','Generation de la carte…');await yld();
+
+  // Compute bounding box
+  let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity,zmin=Infinity,zmax=-Infinity;
+  for(const p of xs){
+    if(p[0]<xmin)xmin=p[0];if(p[0]>xmax)xmax=p[0];
+    if(p[1]<ymin)ymin=p[1];if(p[1]>ymax)ymax=p[1];
+    if(inputDim>=3){if(p[2]<zmin)zmin=p[2];if(p[2]>zmax)zmax=p[2];}
+  }
+  const mx=(xmax-xmin)*.15,my=(ymax-ymin)*.15;
+  xmin-=mx;xmax+=mx;ymin-=my;ymax+=my;
+  const gx=linspace(xmin,xmax,gRes),gy=linspace(ymin,ymax,gRes);
+
+  const xs0=xs.filter((_,i)=>ys[i]===0),xs1=xs.filter((_,i)=>ys[i]===1);
+  const c0='#1a3a8a',c1='#c83232';
+  const titleStr='Frontiere — MLP '+nL+' couche'+(nL>1?'s':'')+' x '+nW+' noeuds — <b>'+actName+'</b> — <b>'+mlp.nParams+' params</b><br>'
+    +'<sup>'+( inputDim===3?'Isosurface':'Heatmap')+' P(y=1|x) | Frontiere P=0.5 | Acc: '+(acc*100).toFixed(1)+'%</sup>';
+
+  const bufs=makeFwdBufs(sizes);
+
+  // ── 3D dataset visualization ──────────────────────────
+  if(inputDim===3){
+    const mz=(zmax-zmin)*.15;zmin-=mz;zmax+=mz;
+    const gRes3d=Math.min(gRes,30);
+    const gz=linspace(zmin,zmax,gRes3d);
+    const gx3=linspace(xmin,xmax,gRes3d),gy3=linspace(ymin,ymax,gRes3d);
+    const flatX=[],flatY=[],flatZ=[],flatV=[];
+    const total3d=gRes3d*gRes3d*gRes3d;
+    let cnt=0;
+    for(let ix=0;ix<gRes3d;ix++){
+      for(let iy=0;iy<gRes3d;iy++){
+        for(let iz=0;iz<gRes3d;iz++){
+          flatX.push(gx3[ix]);flatY.push(gy3[iy]);flatZ.push(gz[iz]);
+          flatV.push(fwdFast(mlp,[gx3[ix],gy3[iy],gz[iz]],bufs));
+          cnt++;
+        }
+      }
+      if(ix%3===0){setProg('pg3',.7+.25*ix/gRes3d);await yld();}
+    }
+    setProg('pg3',.95);
+
+    const isoTrace={
+      type:'isosurface',x:flatX,y:flatY,z:flatZ,value:flatV,
+      isomin:0.48,isomax:0.52,
+      surface:{count:1,fill:0.5},
+      caps:{x:{show:false},y:{show:false},z:{show:false}},
+      colorscale:[[0,'rgba(40,100,200,0.7)'],[1,'rgba(200,60,60,0.7)']],
+      opacity:0.35,showscale:false,
+      name:'Frontière (P≈0.5)',
+      hovertemplate:'x1:%{x:.3f}<br>x2:%{y:.3f}<br>x3:%{z:.3f}<extra></extra>'
+    };
+    const sc0={type:'scatter3d',mode:'markers',
+      x:xs0.map(p=>p[0]),y:xs0.map(p=>p[1]),z:xs0.map(p=>p[2]),
+      marker:{size:3,color:c0,opacity:.85,line:{color:'#fff',width:.3}},name:'Classe 0'};
+    const sc1={type:'scatter3d',mode:'markers',
+      x:xs1.map(p=>p[0]),y:xs1.map(p=>p[1]),z:xs1.map(p=>p[2]),
+      marker:{size:3,color:c1,opacity:.85,line:{color:'#fff',width:.3}},name:'Classe 1'};
+
+    Plotly.react('plot3',[isoTrace,sc0,sc1],{
+      scene:{
+        xaxis:{title:{text:'x1',font:{size:11}},tickfont:{size:9},range:[xmin,xmax]},
+        yaxis:{title:{text:'x2',font:{size:11}},tickfont:{size:9},range:[ymin,ymax]},
+        zaxis:{title:{text:'x3',font:{size:11}},tickfont:{size:9},range:[zmin,zmax]},
+        camera:{eye:{x:1.5,y:-1.5,z:1.2}},bgcolor:'#f7f5f0',
+        aspectmode:'manual',aspectratio:{x:1,y:1,z:1}
+      },
+      title:{text:titleStr,font:{size:12,color:'#1a1610'},x:.5,y:.98},
+      margin:{l:0,r:20,b:0,t:65},paper_bgcolor:'#fff',showlegend:true,
+      legend:{x:.01,y:.99,bgcolor:'rgba(255,255,255,.9)',bordercolor:'#ccc',borderwidth:1,font:{size:11}},
+      font:{family:"Charter,Georgia,serif"}
+    },{responsive:true,displaylogo:false});
+
+  // ── 2D dataset visualization ──────────────────────────
+  } else {
+    const Zg=[];
+    for(let j=0;j<gRes;j++){
+      const row=[];
+      for(let i=0;i<gRes;i++) row.push(fwdFast(mlp,[gx[i],gy[j]],bufs));
+      Zg.push(row);
+      if(j%5===0){setProg('pg3',.7+.25*j/gRes);await yld();}
+    }
+    setProg('pg3',.95);
+
+    if(view==='2d'){
+      const hm={type:'heatmap',x:gx,y:gy,z:Zg,colorscale:[[0,'#1a3a8a'],[0.5,'#f8f8f0'],[1,'#c83232']],
+        zmin:0,zmax:1,colorbar:{title:{text:'P(y=1)'},len:.7,thickness:14,tickfont:{size:10}},
+        hovertemplate:'x1:%{x:.3f}<br>x2:%{y:.3f}<br>P(y=1):%{z:.3f}<extra></extra>',name:'P(y=1|x)',opacity:.85};
+      const ct={type:'contour',x:gx,y:gy,z:Zg,contours:{start:.5,end:.5,size:.01,coloring:'none'},
+        line:{color:'#111',width:2.5},showscale:false,hoverinfo:'skip',name:'Frontiere (P=0.5)'};
+      const sc0t={type:'scatter',mode:'markers',x:xs0.map(p=>p[0]),y:xs0.map(p=>p[1]),
+        marker:{size:5,color:c0,opacity:.75,line:{color:'#fff',width:.5}},name:'Classe 0'};
+      const sc1t={type:'scatter',mode:'markers',x:xs1.map(p=>p[0]),y:xs1.map(p=>p[1]),
+        marker:{size:5,color:c1,opacity:.75,line:{color:'#fff',width:.5}},name:'Classe 1'};
+      Plotly.react('plot3',[hm,ct,sc0t,sc1t],{
+        xaxis:{title:{text:'x1'},tickfont:{size:10},gridcolor:'#eee',range:[xmin,xmax]},
+        yaxis:{title:{text:'x2'},tickfont:{size:10},gridcolor:'#eee',scaleanchor:'x',scaleratio:1,range:[ymin,ymax]},
+        title:{text:titleStr,font:{size:12,color:'#1a1610'},x:.5},
+        margin:{l:55,r:20,b:50,t:70},paper_bgcolor:'#fff',plot_bgcolor:'#f7f5f0',
+        showlegend:true,legend:{x:1.02,y:.99,bgcolor:'rgba(255,255,255,.9)',bordercolor:'#ccc',borderwidth:1,font:{size:11}},
+        font:{family:"Charter,Georgia,serif"}
+      },{responsive:true,displaylogo:false});
+    } else {
+      const sf={type:'surface',x:gx,y:gy,z:Zg,
+        colorscale:[[0,'#1a3a8a'],[0.5,'#f8f8f0'],[1,'#c83232']],zmin:0,zmax:1,
+        colorbar:{title:{text:'P(y=1)'},len:.7,thickness:14,tickfont:{size:10}},
+        contours:{z:{show:false}},
+        lighting:{ambient:.75,diffuse:.85,specular:.3},
+        hovertemplate:'x1:%{x:.3f}<br>x2:%{y:.3f}<br>P(y=1):%{z:.3f}<extra></extra>',opacity:.88,name:'P(y=1|x)'};
+      const sc0b={type:'scatter3d',mode:'markers',x:xs0.map(p=>p[0]),y:xs0.map(p=>p[1]),z:xs0.map(()=>0.01),
+        marker:{size:4,color:c0,opacity:.8,line:{color:'#fff',width:.5}},name:'Classe 0'};
+      const sc1b={type:'scatter3d',mode:'markers',x:xs1.map(p=>p[0]),y:xs1.map(p=>p[1]),z:xs1.map(()=>0.01),
+        marker:{size:4,color:c1,opacity:.8,line:{color:'#fff',width:.5}},name:'Classe 1'};
+      Plotly.react('plot3',[sf,sc0b,sc1b],{
+        scene:{xaxis:{title:{text:'x1',font:{size:11}},tickfont:{size:9},range:[xmin,xmax]},
+          yaxis:{title:{text:'x2',font:{size:11}},tickfont:{size:9},range:[ymin,ymax]},
+          zaxis:{title:{text:'P(y=1|x)',font:{size:11}},tickfont:{size:9},range:[0,1]},
+          camera:{eye:{x:1.4,y:-1.6,z:1.3}},bgcolor:'#f7f5f0',aspectmode:'manual',aspectratio:{x:1.2,y:1.2,z:.65}},
+        title:{text:titleStr,font:{size:12,color:'#1a1610'},x:.5,y:.98},
+        margin:{l:0,r:20,b:0,t:65},paper_bgcolor:'#fff',showlegend:true,
+        legend:{x:.01,y:.99,bgcolor:'rgba(255,255,255,.9)',bordercolor:'#ccc',borderwidth:1,font:{size:11}},
+        font:{family:"Charter,Georgia,serif"}
+      },{responsive:true,displaylogo:false});
+    }
+  }
+  setProg('pg3',1);setDot('d3','ok');
+  setStatus('s3','OK  '+nL+' couche(s) x '+nW+' noeuds x '+actName+' — Acc: '+(acc*100).toFixed(1)+'%');
+  b.disabled=false;b.textContent='Entrainer et visualiser';
+}
+
+// ═══════════════════════ SAVE / LOAD SCENARIOS ═══════════════════════
+function saveScenario(){
+  if(!lastComputed){alert('Calculez d\'abord un paysage !');return;}
+  const name=document.getElementById('sc-name').value.trim();
+  if(!name){alert('Entrez un nom pour le scénario.');return;}
+
+  const sliders={};
+  ['ds','seed','act','nl','nw','rng','gs','nsamp','trlr','surfopac','a0','b0','olr','mblr','alr','mom','bs','ns'].forEach(id=>{
+    sliders[id]=document.getElementById(id).value;
+  });
+  ['ck-sgd','ck-mb','ck-adam','ck-lrdecay','ck-clip'].forEach(id=>{
+    sliders[id]=document.getElementById(id).checked;
+  });
+
+  const scenario={name,timestamp:Date.now(),sliders,computed:lastComputed};
+  try{
+    localStorage.setItem('mlp_sc_'+name,JSON.stringify(scenario));
+    let list=JSON.parse(localStorage.getItem('mlp_sc_list')||'[]');
+    if(!list.includes(name))list.push(name);
+    localStorage.setItem('mlp_sc_list',JSON.stringify(list));
+    refreshScenarioList();
+    document.getElementById('sc-name').value='';
+  }catch(e){
+    alert('Erreur de sauvegarde (localStorage plein ?) : '+e.message);
+  }
+}
+
+function loadScenario(){
+  const sel=document.getElementById('sc-list');
+  if(sel.selectedIndex<0){alert('Sélectionnez un scénario.');return;}
+  const name=sel.value;
+  try{
+    const scenario=JSON.parse(localStorage.getItem('mlp_sc_'+name));
+    if(!scenario){alert('Scénario introuvable.');return;}
+
+    // Restore slider values
+    const sl=scenario.sliders;
+    ['ds','seed','act','nl','nw','rng','gs','nsamp','trlr','surfopac','a0','b0','olr','mblr','alr','mom','bs','ns'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el)el.value=sl[id];
+    });
+    ['ck-sgd','ck-mb','ck-adam','ck-lrdecay','ck-clip'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el)el.checked=sl[id];
+    });
+    // Update visible value labels
+    ['seed','nl','nw','gs','nsamp','bs','ns'].forEach(id=>vb(id,'v-'+id));
+    ['trlr','olr','mblr','alr'].forEach(id=>{if(document.getElementById(id))slr(id,'v-'+id);});
+    document.getElementById('v-rng').textContent=(+document.getElementById('rng').value).toFixed(1);
+    document.getElementById('v-surfopac').textContent=(+document.getElementById('surfopac').value).toFixed(2);
+    document.getElementById('v-mom').textContent=(+document.getElementById('mom').value).toFixed(2);
+
+    // Display saved plot instantly
+    lastComputed=scenario.computed;
+    displayFromData(lastComputed);
+    setProg('pg1',1);setDot('d1','ok');
+    setStatus('s1','✓ Scénario chargé : '+name);
+  }catch(e){
+    alert('Erreur de chargement : '+e.message);
+  }
+}
+
+function deleteScenario(){
+  const sel=document.getElementById('sc-list');
+  if(sel.selectedIndex<0){alert('Sélectionnez un scénario.');return;}
+  const name=sel.value;
+  if(!confirm('Supprimer le scénario « '+name+' » ?'))return;
+  localStorage.removeItem('mlp_sc_'+name);
+  let list=JSON.parse(localStorage.getItem('mlp_sc_list')||'[]');
+  list=list.filter(n=>n!==name);
+  localStorage.setItem('mlp_sc_list',JSON.stringify(list));
+  refreshScenarioList();
+}
+
+function refreshScenarioList(){
+  const list=JSON.parse(localStorage.getItem('mlp_sc_list')||'[]');
+  const sel=document.getElementById('sc-list');
+  sel.innerHTML='';
+  list.forEach(name=>{
+    const opt=document.createElement('option');
+    opt.value=name;opt.textContent=name;
+    sel.appendChild(opt);
+  });
+}
+
+// ═══════════════════════ LAYOUT HELPER ═══════════════════════
+const Inf=Number.POSITIVE_INFINITY;
+function g(id){return document.getElementById(id).value;}
+async function yld(){return new Promise(r=>setTimeout(r,4));}
+
+function makeLayout(title,alphas,xtitle,ytitle){
+  return{
+    scene:{
+      xaxis:{title:{text:xtitle,font:{size:11}},
+        tickfont:{size:9},gridcolor:'#ddd',
+        zerolinecolor:'#666',zerolinewidth:2.5,
+        range:[alphas[0],alphas[alphas.length-1]]},
+      yaxis:{title:{text:ytitle,font:{size:11}},
+        tickfont:{size:9},gridcolor:'#ddd',
+        zerolinecolor:'#666',zerolinewidth:2.5,
+        range:[alphas[0],alphas[alphas.length-1]]},
+      zaxis:{title:{text:'Z = BCE Loss',font:{size:11}},
+        tickfont:{size:9},gridcolor:'#ddd'},
+      camera:{eye:{x:1.55,y:-1.65,z:1.15},center:{x:0,y:0,z:-.1}},
+      bgcolor:'#f7f5f0',
+      aspectmode:'manual',aspectratio:{x:1.2,y:1.2,z:.75}
+    },
+    title:{text:title,font:{size:13,color:'#1a1610'},x:.5,y:.98,xanchor:'center'},
+    margin:{l:0,r:20,b:0,t:68},
+    paper_bgcolor:'#ffffff',
+    showlegend:true,
+    legend:{x:.01,y:.99,bgcolor:'rgba(255,255,255,.9)',
+      bordercolor:'#ccc',borderwidth:1,font:{size:11}},
+    font:{family:"Charter, Georgia, serif"}
+  };
+}
+
+// ═══════════════════════ TABS ════════════════════════════
+function switchTab(n){
+  [1,3].forEach(i=>{document.getElementById('tab'+i).classList.toggle('active',i===n);});
+  document.getElementById('btn-t1').classList.toggle('active',n===1);
+  document.getElementById('btn-t2').classList.toggle('active',n===3);
+  setTimeout(()=>{Plotly.Plots.resize('plot1');Plotly.Plots.resize('plot3');},60);
+}
+
+// ═══════════════════════ INITIAL PLACEHOLDER ════════════════
+function initPlaceholder(divId,msg){
+  const ph={
+    type:'surface',
+    x:[[-1,0,1],[-1,0,1],[-1,0,1]],
+    y:[[-1,-1,-1],[0,0,0],[1,1,1]],
+    z:[[1.4,.7,1.4],[.7,.15,.7],[1.4,.7,1.4]],
+    colorscale:'Blues',opacity:.35,showscale:false
+  };
+  Plotly.newPlot(divId,[ph],{
+    scene:{
+      xaxis:{title:{text:'α — perturbation dir. 1 (poids)'},tickfont:{size:9}},
+      yaxis:{title:{text:'β — perturbation dir. 2 (poids)'},tickfont:{size:9}},
+      zaxis:{title:{text:'Z = BCE Loss'},tickfont:{size:9}},
+      camera:{eye:{x:1.6,y:-1.6,z:1.2}},bgcolor:'#f7f5f0',
+      aspectmode:'manual',aspectratio:{x:1.2,y:1.2,z:.75}
+    },
+    title:{text:msg,font:{size:14,color:'#9a8e7a'},x:.5},
+    margin:{l:0,r:0,b:0,t:50},paper_bgcolor:'#ffffff',
+    annotations:[{x:.5,y:.45,xref:'paper',yref:'paper',
+      text:'← Configurez dans le panneau gauche',showarrow:false,
+      font:{size:15,color:'#c4b8a0'}}]
+  },{responsive:true,displayModeBar:false});
+}
+
+initPlaceholder('plot1','Configurez et cliquez <b>Calculer paysage + trajectoires</b>');
+initPlaceholder('plot3','Configurez et cliquez <b>Entrainer et visualiser</b>');
+refreshScenarioList();
+
+window.addEventListener('resize',()=>{
+  Plotly.Plots.resize('plot1');Plotly.Plots.resize('plot3');});
+</script>
+</body>
+</html>
